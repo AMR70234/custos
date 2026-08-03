@@ -39,9 +39,11 @@ pub enum Error {
     SessionBudgetExceeded = 6,
     UnknownSigner = 7,
     BadSignature = 8,
+    UnauthorizedAdmin = 9,
 }
 
 const OWNERS: Symbol = symbol_short!("OWNERS");
+const ADMINS: Symbol = symbol_short!("ADMINS");
 const THRESHOLD: Symbol = symbol_short!("THRESH");
 const SPEND: Symbol = symbol_short!("SPEND");
 const SESSION: Symbol = symbol_short!("SESSION");
@@ -84,11 +86,13 @@ pub struct PolicyWallet;
 
 #[contractimpl]
 impl PolicyWallet {
-    /// One-time setup: register owner keys + the approval threshold and an
+    /// One-time setup: register owner keys + the approval threshold, the
+    /// classic Stellar addresses allowed to manage session keys, and an
     /// optional daily spending ceiling that applies below the threshold.
     pub fn initialize(
         env: Env,
         owners: Vec<Owner>,
+        admins: Vec<Address>,
         threshold: u32,
         daily_limit: i128,
     ) -> Result<(), Error> {
@@ -96,6 +100,7 @@ impl PolicyWallet {
             return Err(Error::AlreadyInitialized);
         }
         env.storage().instance().set(&OWNERS, &owners);
+        env.storage().instance().set(&ADMINS, &admins);
         env.storage().instance().set(&THRESHOLD, &threshold);
         env.storage().instance().set(
             &SPEND,
@@ -110,14 +115,26 @@ impl PolicyWallet {
 
     /// Owner action: issue a session key that a dApp / game can use on the
     /// wallet's behalf until it expires or exhausts its own budget.
+    ///
+    /// `owner.require_auth()` alone only proves *someone* controls the
+    /// `owner` address — it does not prove that address is one of this
+    /// wallet's registered admins. The explicit membership check below
+    /// closes that gap: without it, any address that signs for itself can
+    /// call this successfully.
     pub fn add_session_key(
         env: Env,
         owner: Address,
         session_pk: BytesN<32>,
         ttl_seconds: u64,
         budget: i128,
-    ) {
+    ) -> Result<(), Error> {
         owner.require_auth();
+
+        let admins: Vec<Address> = env.storage().instance().get(&ADMINS).unwrap();
+        if !admins.iter().any(|a| a == owner) {
+            return Err(Error::UnauthorizedAdmin);
+        }
+
         let key = SessionKey {
             public_key: session_pk,
             expires_at: env.ledger().timestamp() + ttl_seconds,
@@ -128,6 +145,7 @@ impl PolicyWallet {
         env.storage()
             .temporary()
             .extend_ttl(&SESSION, ttl_seconds as u32, ttl_seconds as u32);
+        Ok(())
     }
 
     /// Read-only helper for the frontend dashboard.

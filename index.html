@@ -594,7 +594,7 @@
 
           <button class="btn btn-gold" style="width:100%;justify-content:center;margin-top:6px;" onclick="createPolicy()">Seal policy</button>
           <div class="send-result" id="policyOnchainResult"></div>
-          <div class="code-note" id="contractNote">contract_id: <b id="contractIdText">CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV</b> <button class="theme-toggle" style="width:auto;height:auto;padding:3px 9px;font-size:0.68rem;border-radius:6px;" onclick="copyContractId()" title="Copy contract ID">copy</button> · deployed &amp; initialized on testnet<br><a href="https://lab.stellar.org/r/testnet/contract/CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV" target="_blank" rel="noopener" style="color:var(--gold);">View contract on Stellar Lab →</a></div>
+          <div class="code-note" id="contractNote">contract_id: <b id="contractIdText">CCDLUCHHH4IIRIXTLRALOCZZGTVDGPBZDE5FY6TTMQRUFDEZ2G7BXGZ3</b> <button class="theme-toggle" style="width:auto;height:auto;padding:3px 9px;font-size:0.68rem;border-radius:6px;" onclick="copyContractId()" title="Copy contract ID">copy</button> · deployed &amp; initialized on testnet<br><a href="https://lab.stellar.org/r/testnet/contract/CCDLUCHHH4IIRIXTLRALOCZZGTVDGPBZDE5FY6TTMQRUFDEZ2G7BXGZ3" target="_blank" rel="noopener" style="color:var(--gold);">View contract on Stellar Lab →</a></div>
         </div>
 
         <div class="panel">
@@ -844,7 +844,7 @@ setInterval(() => {
 // Reads the real "SPEND" entry out of the deployed contract's instance
 // storage via Soroban RPC. No simulated numbers here: this is the same
 // data `stellar contract invoke ... get_spend_policy` returns.
-const CONTRACT_ID = "CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV";
+const CONTRACT_ID = "CCDLUCHHH4IIRIXTLRALOCZZGTVDGPBZDE5FY6TTMQRUFDEZ2G7BXGZ3";
 const RPC_URL = "https://soroban-testnet.stellar.org";
 let lastKnownPolicy = null; // {daily_limit, spent, day_index} in stroops, filled once a fetch succeeds
 
