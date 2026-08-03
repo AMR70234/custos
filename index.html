@@ -769,11 +769,12 @@ async function sendPayment(){
   }
 
   try{
+    const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
     const horizon = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
     const account = await horizon.loadAccount(connectedPublicKey);
     const tx = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
-      networkPassphrase: StellarSdk.Networks.TESTNET
+      networkPassphrase: TESTNET_PASSPHRASE
     })
       .addOperation(StellarSdk.Operation.payment({
         destination: dest,
@@ -785,11 +786,11 @@ async function sendPayment(){
 
     resultEl.textContent = 'Waiting for Freighter signature…';
     const signResult = await window.freighterApi.signTransaction(tx.toXDR(), {
-      network: 'TESTNET',
+      networkPassphrase: TESTNET_PASSPHRASE,
       address: connectedPublicKey
     });
     if (signResult.error) throw new Error(signResult.error.message || 'signing failed');
-    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signResult.signedTxXdr, StellarSdk.Networks.TESTNET);
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signResult.signedTxXdr, TESTNET_PASSPHRASE);
 
     resultEl.textContent = 'Submitting to testnet…';
     const submitted = await horizon.submitTransaction(signedTx);
