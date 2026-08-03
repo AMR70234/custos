@@ -245,6 +245,31 @@
   .verdict.block .vhead{color:#D98A78;}
   .verdict .vbody{color:var(--text-muted);font-size:0.9rem;line-height:1.6;}
   .verdict .verrcode{font-family:var(--mono);font-size:0.76rem;color:var(--text-dim);margin-top:10px;display:block;}
+
+  /* Send / Receive */
+  .sr-tabs{display:flex;gap:8px;margin-bottom:20px;}
+  .sr-tab{
+    flex:1; text-align:center; padding:10px; border-radius:9px; cursor:pointer;
+    font-size:0.9rem; font-weight:600; border:1px solid var(--hairline); color:var(--text-muted);
+    transition:all .2s;
+  }
+  .sr-tab.active{background:var(--gold);color:#1B1500;border-color:var(--gold);}
+  .sr-pane{display:none;}
+  .sr-pane.active{display:block;}
+  .receive-addr{
+    font-family:var(--mono); font-size:0.95rem; background:var(--bg); border:1px solid var(--hairline);
+    border-radius:9px; padding:16px; word-break:break-all; margin-bottom:14px; color:var(--text);
+  }
+  .precheck-box{
+    border:1px solid var(--hairline); border-radius:9px; padding:14px 16px; margin:14px 0;
+    background:var(--bg); font-size:0.86rem; color:var(--text-muted); display:none;
+  }
+  .precheck-box.show{display:block;}
+  .precheck-box.pass{border-color:var(--teal);}
+  .precheck-box.fail{border-color:var(--danger);}
+  .send-result{margin-top:14px; font-family:var(--mono); font-size:0.82rem; word-break:break-all; display:none;}
+  .send-result.show{display:block;}
+  .send-result a{color:var(--gold);}
 </style>
 </head>
 <body>
@@ -413,6 +438,32 @@
         </div>
       </div>
 
+      <div class="panel" style="margin-bottom:28px;">
+        <h3>Send / Receive XLM (testnet)</h3>
+        <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:18px;">Real transfers on Stellar testnet via Freighter — a genuine network transaction, not a mock.</p>
+        <div class="sr-tabs">
+          <div class="sr-tab active" data-pane="receive" onclick="switchSrTab('receive')">Receive</div>
+          <div class="sr-tab" data-pane="send" onclick="switchSrTab('send')">Send</div>
+        </div>
+
+        <div class="sr-pane active" data-pane="receive">
+          <div class="field"><label>Your address</label>
+            <div class="receive-addr" id="receiveAddr">Connect a wallet above to see your receiving address</div>
+          </div>
+          <button class="btn btn-ghost" onclick="copyAddress()">Copy address</button>
+        </div>
+
+        <div class="sr-pane" data-pane="send">
+          <div class="field"><label for="sendDest">Destination address (G...)</label><input id="sendDest" type="text" placeholder="GABC..."></div>
+          <div class="field"><label for="sendAmount">Amount (XLM)</label><input id="sendAmount" type="number" placeholder="10"></div>
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:10px;" onclick="precheckSend()">Check against policy first</button>
+          <div class="precheck-box" id="sendPrecheck"></div>
+          <button class="btn btn-gold" style="width:100%;justify-content:center;" onclick="sendPayment()">Send on testnet</button>
+          <div class="send-result" id="sendResult"></div>
+          <div class="code-note" style="margin-top:14px;">This sends a standard Stellar payment from your connected Freighter account. Custos's daily-limit / multisig rules are enforced when the sending account <i>is</i> the policy-wallet contract; here they're shown as a pre-flight check against the live limit above so you can see the same logic before it moves real funds.</div>
+        </div>
+      </div>
+
       <div class="app-grid">
         <div class="panel">
           <h3>New policy</h3>
@@ -498,6 +549,8 @@ async function connectWallet(){
       const pk = typeof access === 'string' ? access : access?.address;
       if (pk){
         addrEl.innerHTML = 'Connected · <b>' + pk.slice(0,4) + '…' + pk.slice(-4) + '</b>';
+        connectedPublicKey = pk;
+        document.getElementById('receiveAddr').textContent = pk;
         toast('Wallet connected via Freighter');
         return;
       }
@@ -507,10 +560,13 @@ async function connectWallet(){
     const manual = prompt('Freighter not detected. Paste a Stellar public key (G...) to preview the dashboard:');
     if (manual){
       addrEl.innerHTML = 'Connected (manual) · <b>' + manual.slice(0,4) + '…' + manual.slice(-4) + '</b>';
-      toast('Preview mode: address entered manually');
+      connectedPublicKey = manual;
+      document.getElementById('receiveAddr').textContent = manual;
+      toast('Preview mode: address entered manually — sending will still require Freighter to sign');
     }
   }
 }
+let connectedPublicKey = null;
 
 // --- Policy creation -----------------------------------------------------
 // If a real contract_id + stellar-sdk invocation is wired in later, replace
@@ -666,6 +722,83 @@ function checkTransaction(){
     return;
   }
   block('Combined signer weight (' + weight + ') does not meet the required threshold (' + threshold + ').', 'ThresholdNotMet');
+}
+
+// --- Send / Receive --------------------------------------------------------
+function switchSrTab(name){
+  document.querySelectorAll('.sr-tab').forEach(t => t.classList.toggle('active', t.dataset.pane === name));
+  document.querySelectorAll('.sr-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === name));
+}
+
+function copyAddress(){
+  if (!connectedPublicKey){ toast('Connect a wallet first'); return; }
+  navigator.clipboard.writeText(connectedPublicKey).then(()=>toast('Address copied'));
+}
+
+function precheckSend(){
+  const amount = parseFloat(document.getElementById('sendAmount').value || '0');
+  const box = document.getElementById('sendPrecheck');
+  const limit = lastKnownPolicy ? lastKnownPolicy.daily_limit : 500;
+  const spent = lastKnownPolicy ? lastKnownPolicy.spent : 0;
+  box.classList.add('show');
+  if (spent + amount > limit){
+    box.className = 'precheck-box show fail';
+    box.textContent = '⚠ ' + amount + ' XLM would exceed the daily limit (' + spent + ' / ' + limit + ' XLM used) if this account were governed by the policy contract. A real policy-wallet would reject this without extra owner signatures.';
+  } else {
+    box.className = 'precheck-box show pass';
+    box.textContent = '✓ ' + amount + ' XLM stays within the daily limit (' + spent + ' / ' + limit + ' XLM used). This send will proceed below.';
+  }
+}
+
+async function sendPayment(){
+  const resultEl = document.getElementById('sendResult');
+  resultEl.className = 'send-result show';
+  resultEl.textContent = 'Preparing transaction…';
+
+  const dest = (document.getElementById('sendDest').value || '').trim();
+  const amount = document.getElementById('sendAmount').value;
+
+  if (!connectedPublicKey){ resultEl.textContent = '⚠ Connect a wallet first.'; return; }
+  if (!dest || !dest.startsWith('G')){ resultEl.textContent = '⚠ Enter a valid destination G... address.'; return; }
+  if (!amount || parseFloat(amount) <= 0){ resultEl.textContent = '⚠ Enter an amount greater than 0.'; return; }
+  if (typeof StellarSdk === 'undefined' || !window.freighterApi){
+    resultEl.textContent = '⚠ Needs both the stellar-sdk script and the Freighter extension loaded — refresh and make sure Freighter is installed.';
+    return;
+  }
+
+  try{
+    const horizon = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
+    const account = await horizon.loadAccount(connectedPublicKey);
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: StellarSdk.Networks.TESTNET
+    })
+      .addOperation(StellarSdk.Operation.payment({
+        destination: dest,
+        asset: StellarSdk.Asset.native(),
+        amount: String(amount)
+      }))
+      .setTimeout(60)
+      .build();
+
+    resultEl.textContent = 'Waiting for Freighter signature…';
+    const signResult = await window.freighterApi.signTransaction(tx.toXDR(), {
+      network: 'TESTNET',
+      networkPassphrase: StellarSdk.Networks.TESTNET
+    });
+    const signedXdr = typeof signResult === 'string' ? signResult : signResult.signedTxXdr;
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, StellarSdk.Networks.TESTNET);
+
+    resultEl.textContent = 'Submitting to testnet…';
+    const submitted = await horizon.submitTransaction(signedTx);
+    resultEl.innerHTML = '✓ Sent. <a href="https://stellar.expert/explorer/testnet/tx/' + submitted.hash + '" target="_blank" rel="noopener">View on Stellar Expert →</a>';
+    toast('Payment submitted to testnet');
+  }catch(err){
+    const msg = err?.response?.data?.extras?.result_codes
+      ? JSON.stringify(err.response.data.extras.result_codes)
+      : (err.message || String(err));
+    resultEl.textContent = '⚠ Failed: ' + msg;
+  }
 }
 </script>
 

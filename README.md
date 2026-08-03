@@ -78,6 +78,17 @@ before you rely on it.
   against the live daily limit, and explains which `Error` variant would
   fire. This runs client-side rather than as a signed transaction, so it's
   labeled as a rules check, not an on-chain call.
+- **Send / Receive (testnet)**: Receive shows your connected address for
+  copying. Send builds a real classic Stellar `Payment` operation, has
+  Freighter sign it, and submits it to testnet Horizon — a genuine
+  transaction you can view on Stellar Expert. Note the honest boundary
+  here: this moves funds from your regular Freighter account, not from
+  the policy-wallet contract account, so the daily-limit / multisig rules
+  aren't enforced by the protocol on this particular send — the "Check
+  against policy first" button runs the same rule client-side as a
+  preview of what *would* happen if the sending account were the
+  contract. Making the contract itself custodial (funds live in the
+  contract, and it authorizes its own payments) is the natural next step.
 
 ## Ideas to extend for extra points
 
