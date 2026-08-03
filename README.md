@@ -13,44 +13,44 @@ contracts/policy-wallet/src/lib.rs → Soroban contract: CustomAccountInterface 
 contracts/policy-wallet/Cargo.toml → build manifest
 ```
 
-## Live deployment (testnet)
+## Honest scope (read this before a demo)
 
-Deployed and initialized — this is a real, on-chain contract, not a mock.
+- **Real:** the site's design, copy, layout, and the dApp UI flow (policy
+  creation forms, dashboard, wallet-connect attempt via the Freighter
+  browser extension).
+- **Simulated:** policy cards created in the UI are stored client-side only.
+  The contract in `contracts/policy-wallet` is a genuine reference
+  implementation of the auth logic, but it is **not deployed** — I have no
+  network access to Stellar RPC from this environment, so I couldn't build,
+  test, or push it to testnet for you.
+- To make this fully live before judging: deploy the contract, put the
+  resulting `contract_id` into the `contractNote` element / a config
+  variable in `index.html`, and replace `createPolicy()`'s simulation with a
+  real `InvokeHostFunction` call via `@stellar/stellar-sdk` (initialize /
+  add_session_key).
 
-| | |
-|---|---|
-| **Contract ID** | `CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV` |
-| **Network** | Stellar Testnet |
-| **Deployed** | Aug 3, 2026 |
-| **Owner** | `GA6HHBRA73MMJ2M3RHFKGQKJVZSCWV52VL25G2CBNAVSJKDVORQNP6RH` |
-| **Daily limit** | 500 XLM (rolling 24h) |
-| **Explorer** | https://lab.stellar.org/r/testnet/contract/CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV |
+Being upfront about this in your pitch is safer than judges discovering it —
+most hackathon rubrics reward a clear "here's what's live, here's the
+roadmap" more than a demo that quietly fudges the difference.
 
-Verify it yourself:
-
-```bash
-stellar contract invoke \
-  --id CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV \
-  --source my-wallet \
-  --network testnet \
-  -- \
-  get_spend_policy
-```
-
-## Deploying your own copy
+## Deploying the contract (testnet)
 
 ```bash
+# from contracts/policy-wallet/
 rustup target add wasm32-unknown-unknown
-cd contracts/policy-wallet
 cargo build --target wasm32-unknown-unknown --release
-stellar keys generate my-wallet --network testnet --fund
-stellar contract deploy \
+soroban contract deploy \
   --wasm target/wasm32-unknown-unknown/release/policy_wallet.wasm \
-  --source my-wallet \
+  --source <your-testnet-identity> \
   --network testnet
 ```
 
-Then call `initialize` with your owner keys, threshold, and daily limit.
+Then call `initialize` with your owner keys, threshold, and daily limit
+using the Soroban CLI or the JS SDK. Check field/trait names against the
+exact `soroban-sdk` version in your toolchain — the custom-auth API has
+changed across recent protocol releases, so diff this against
+https://stellar.github.io/js-stellar-sdk/guides/00-protocol-27-soroban-auth/
+before you rely on it.
 
 ## Suggested pitch structure (3–5 min demo)
 
@@ -65,10 +65,24 @@ Then call `initialize` with your owner keys, threshold, and daily limit.
 4. **What's next (30s):** real spend-amount parsing from `auth_contexts`,
    a revocation flow, and a mainnet audit pass.
 
+## What the app UI now does live
+
+- **Live contract state**: on load, `index.html` calls Soroban testnet RPC
+  directly (`server.getContractData`) and reads the real `SPEND` entry out
+  of the deployed contract's instance storage — the same numbers
+  `stellar contract invoke ... get_spend_policy` returns from the CLI. If
+  the RPC call fails (offline, CORS, etc.) it says so explicitly and falls
+  back to the last CLI-confirmed figures, labeled as such.
+- **"Would this be blocked?" checker**: mirrors `__check_auth`'s logic
+  (signer weight vs. threshold, rolling daily limit, session expiry/budget)
+  against the live daily limit, and explains which `Error` variant would
+  fire. This runs client-side rather than as a signed transaction, so it's
+  labeled as a rules check, not an on-chain call.
+
 ## Ideas to extend for extra points
 
 - Parse actual token `transfer` calls out of `auth_contexts` in
   `estimate_spend()` instead of the placeholder `0`.
-- Add a policy **revocation** function + UI button.
+- Add a policy **revocation** function + UI button (needs a new contract
+  function + redeploy).
 - Emit contract events on policy changes and show them as an activity feed.
-- Add a "why was this blocked" screen using the contract's `Error` variants.

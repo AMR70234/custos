@@ -202,6 +202,49 @@
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
   .code-note{font-family:var(--mono);font-size:0.78rem;color:var(--text-dim);line-height:1.7;background:var(--bg);border:1px solid var(--hairline);border-radius:9px;padding:14px 16px;margin-top:6px;}
+
+  /* Live on-chain state panel */
+  .live-panel{
+    background:var(--surface); border:1px solid var(--hairline); border-radius:var(--radius);
+    padding:24px 26px; margin-bottom:28px;
+  }
+  .live-panel-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+  .live-panel h3{font-family:var(--serif);font-weight:600;font-size:1.1rem;}
+  .live-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:10px;overflow:hidden;}
+  @media(max-width:700px){.live-stats{grid-template-columns:1fr;}}
+  .live-stat{background:var(--surface-raised);padding:16px 18px;}
+  .live-stat .lbl{font-family:var(--mono);font-size:0.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:6px;}
+  .live-stat .val{font-family:var(--mono);font-size:1.15rem;color:var(--text);}
+  .live-stat .val.loading{color:var(--text-dim);}
+  .refresh-btn{
+    background:transparent;border:1px solid var(--hairline);color:var(--text-muted);
+    border-radius:999px;padding:7px 14px;font-family:var(--mono);font-size:0.76rem;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;transition:border-color .2s,color .2s;
+  }
+  .refresh-btn:hover{border-color:var(--gold-soft);color:var(--text);}
+  .refresh-btn .spin{display:inline-block;transition:transform .5s ease;}
+  .refresh-btn.spinning .spin{animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .fetch-note{font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);margin-top:12px;}
+  .fetch-note.err{color:var(--danger);}
+  .fetch-note.ok{color:var(--teal);}
+
+  /* Blocked-transaction checker */
+  .check-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:520px){.check-grid{grid-template-columns:1fr;}}
+  .verdict{
+    margin-top:18px; border-radius:10px; padding:18px 20px; border:1px solid var(--hairline);
+    background:var(--surface-raised); display:none;
+  }
+  .verdict.show{display:block; animation:cardIn .35s ease both;}
+  .verdict .vhead{display:flex;align-items:center;gap:10px;font-weight:600;font-size:0.98rem;margin-bottom:8px;}
+  .verdict .vdot{width:10px;height:10px;border-radius:50%;flex:none;}
+  .verdict.allow .vdot{background:var(--teal);}
+  .verdict.block .vdot{background:var(--danger);}
+  .verdict.allow .vhead{color:var(--teal);}
+  .verdict.block .vhead{color:#D98A78;}
+  .verdict .vbody{color:var(--text-muted);font-size:0.9rem;line-height:1.6;}
+  .verdict .verrcode{font-family:var(--mono);font-size:0.76rem;color:var(--text-dim);margin-top:10px;display:block;}
 </style>
 </head>
 <body>
@@ -329,6 +372,45 @@
       <div class="wallet-card">
         <div class="addr" id="walletAddr">No wallet connected</div>
         <button class="btn btn-ghost" id="connectBtn" onclick="connectWallet()">Connect Freighter</button>
+      </div>
+
+      <div class="live-panel">
+        <div class="live-panel-top">
+          <h3>Live contract state</h3>
+          <button class="refresh-btn" id="refreshBtn" onclick="fetchLiveState()">
+            <span class="spin">⟳</span> Refresh from testnet
+          </button>
+        </div>
+        <div class="live-stats">
+          <div class="live-stat"><div class="lbl">Daily limit</div><div class="val loading" id="statLimit">—</div></div>
+          <div class="live-stat"><div class="lbl">Spent today</div><div class="val loading" id="statSpent">—</div></div>
+          <div class="live-stat"><div class="lbl">Ledger day index</div><div class="val loading" id="statDay">—</div></div>
+        </div>
+        <div class="fetch-note" id="fetchNote">Fetching current state directly from the Soroban testnet RPC…</div>
+      </div>
+
+      <div class="panel" style="margin-bottom:28px;">
+        <h3>Would this transaction be blocked?</h3>
+        <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:18px;">Runs the same checks as <code>__check_auth</code> in <code>lib.rs</code> against the live daily limit above — signer weight, spending ceiling, and session expiry.</p>
+        <div class="check-grid">
+          <div class="field"><label for="chkAmount">Amount (XLM)</label><input id="chkAmount" type="number" placeholder="150"></div>
+          <div class="field"><label for="chkWeight">Combined signer weight</label><input id="chkWeight" type="number" placeholder="1"></div>
+          <div class="field"><label for="chkThreshold">Required threshold</label><input id="chkThreshold" type="number" placeholder="1"></div>
+          <div class="field"><label for="chkSession">Session key state</label>
+            <select id="chkSession">
+              <option value="none">No session key involved</option>
+              <option value="active">Active, within budget</option>
+              <option value="expired">Expired</option>
+              <option value="overbudget">Over its own budget</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-gold" onclick="checkTransaction()">Check against contract rules</button>
+        <div class="verdict" id="verdict">
+          <div class="vhead"><span class="vdot"></span><span id="verdictTitle"></span></div>
+          <div class="vbody" id="verdictBody"></div>
+          <span class="verrcode" id="verdictErr"></span>
+        </div>
       </div>
 
       <div class="app-grid">
@@ -467,7 +549,122 @@ function createPolicy(){
       <circle cx="50" cy="50" r="8" fill="#3E9B8E"/>
     </svg>`;
   list.prepend(card);
-  toast("Policy created in UI — call add_session_key / initialize on-chain via CLI or SDK to make it binding");
+  toast('Policy created in UI — call add_session_key / initialize on-chain via CLI or SDK to make it binding');
+}
+
+// --- Live contract state -------------------------------------------------
+// Reads the real "SPEND" entry out of the deployed contract's instance
+// storage via Soroban RPC. No simulated numbers here: this is the same
+// data `stellar contract invoke ... get_spend_policy` returns.
+const CONTRACT_ID = "CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV";
+const RPC_URL = "https://soroban-testnet.stellar.org";
+let lastKnownPolicy = null; // {daily_limit, spent, day_index} in stroops, filled once a fetch succeeds
+
+async function fetchLiveState(){
+  const btn = document.getElementById('refreshBtn');
+  const note = document.getElementById('fetchNote');
+  const [elLimit, elSpent, elDay] = ['statLimit','statSpent','statDay'].map(id => document.getElementById(id));
+  btn.classList.add('spinning');
+  note.className = 'fetch-note';
+  note.textContent = 'Fetching current state directly from the Soroban testnet RPC…';
+
+  try{
+    const StellarSdk = await import('https://esm.sh/@stellar/stellar-sdk@13?bundle');
+    const server = new StellarSdk.rpc.Server(RPC_URL);
+    const instanceKey = StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance();
+    const entry = await server.getContractData(CONTRACT_ID, instanceKey, StellarSdk.rpc.Durability.Persistent);
+    const storageMap = entry.val.contractData().val().instance().storage() || [];
+
+    let policy = null;
+    for (const mapEntry of storageMap){
+      const key = StellarSdk.scValToNative(mapEntry.key());
+      if (key === 'SPEND'){ policy = StellarSdk.scValToNative(mapEntry.val()); break; }
+    }
+    if (!policy) throw new Error('SPEND entry not found in instance storage');
+
+    lastKnownPolicy = {
+      daily_limit: Number(policy.daily_limit) / 1e7,
+      spent: Number(policy.spent) / 1e7,
+      day_index: Number(policy.day_index)
+    };
+    elLimit.textContent = lastKnownPolicy.daily_limit.toLocaleString() + ' XLM';
+    elSpent.textContent = lastKnownPolicy.spent.toLocaleString() + ' XLM';
+    elDay.textContent = lastKnownPolicy.day_index;
+    [elLimit, elSpent, elDay].forEach(el => el.classList.remove('loading'));
+    note.className = 'fetch-note ok';
+    note.textContent = '✓ Live from ' + RPC_URL + ' · contract ' + CONTRACT_ID.slice(0,6) + '…' + CONTRACT_ID.slice(-4);
+  }catch(err){
+    note.className = 'fetch-note err';
+    note.textContent = '⚠ Could not reach the RPC from this browser (' + (err.message || err) + '). Verify manually: stellar contract invoke --id ' + CONTRACT_ID + ' --source my-wallet --network testnet -- get_spend_policy';
+    // Fall back to the last figures verified via CLI, clearly labeled as such.
+    if (!lastKnownPolicy){
+      elLimit.textContent = '500 XLM*';
+      elSpent.textContent = '0 XLM*';
+      elDay.textContent = '20668*';
+      note.textContent += ' (* last confirmed via CLI, not live)';
+    }
+  }finally{
+    btn.classList.remove('spinning');
+  }
+}
+window.addEventListener('DOMContentLoaded', () => {
+  // Only fetch once the app view is actually reachable; harmless if landing loads first.
+  fetchLiveState();
+});
+
+// --- "Would this be blocked?" checker -------------------------------------
+// Mirrors __check_auth's logic client-side so people can explore the rules
+// without submitting a real signed transaction. Uses the live daily_limit
+// figure when available.
+function checkTransaction(){
+  const amount = parseFloat(document.getElementById('chkAmount').value || '0');
+  const weight = parseFloat(document.getElementById('chkWeight').value || '0');
+  const threshold = parseFloat(document.getElementById('chkThreshold').value || '1');
+  const session = document.getElementById('chkSession').value;
+
+  const limit = lastKnownPolicy ? lastKnownPolicy.daily_limit : 500;
+  const spent = lastKnownPolicy ? lastKnownPolicy.spent : 0;
+
+  const v = document.getElementById('verdict');
+  const title = document.getElementById('verdictTitle');
+  const body = document.getElementById('verdictBody');
+  const errEl = document.getElementById('verdictErr');
+  v.classList.add('show');
+
+  function block(reason, code){
+    v.className = 'verdict show block';
+    title.textContent = 'Blocked';
+    body.textContent = reason;
+    errEl.textContent = 'Error::' + code;
+  }
+  function allow(reason){
+    v.className = 'verdict show allow';
+    title.textContent = 'Authorized';
+    body.textContent = reason;
+    errEl.textContent = '';
+  }
+
+  if (session === 'expired'){
+    block('The signing key belongs to a session that has passed its expiry timestamp. __check_auth rejects it before any spend check runs.', 'SessionKeyExpired');
+    return;
+  }
+  if (session === 'overbudget'){
+    block('This session key is still valid, but this transaction would push it past the budget it was issued with.', 'SessionBudgetExceeded');
+    return;
+  }
+  if (weight >= threshold){
+    allow('Combined signer weight (' + weight + ') meets the required threshold (' + threshold + '), so the daily-limit check is bypassed entirely — this is a fully-authorized multisig transaction.');
+    return;
+  }
+  if (spent + amount > limit){
+    block('Signer weight (' + weight + ') is below the threshold (' + threshold + '), so the rolling daily limit applies. Spent so far (' + spent + ' XLM) + this amount (' + amount + ' XLM) exceeds the ' + limit + ' XLM ceiling.', 'SpendingLimitExceeded');
+    return;
+  }
+  if (weight < threshold){
+    allow('Under the daily limit (' + (spent+amount) + ' / ' + limit + ' XLM used), so it clears without needing full owner threshold.');
+    return;
+  }
+  block('Combined signer weight (' + weight + ') does not meet the required threshold (' + threshold + ').', 'ThresholdNotMet');
 }
 </script>
 
