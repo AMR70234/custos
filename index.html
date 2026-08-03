@@ -310,6 +310,14 @@
   .send-result.show{display:block;}
   .send-result a{color:var(--gold);}
 
+  .error-box{
+    border:1px solid var(--danger); border-radius:9px; padding:12px 16px; margin-top:10px;
+    background:rgba(193,91,74,0.08); display:flex; align-items:flex-start; gap:10px;
+  }
+  .error-box .eicon{color:var(--danger);font-size:1rem;line-height:1;flex:none;margin-top:1px;}
+  .error-box .etext{font-size:0.86rem;color:var(--text);}
+  .error-box .ecode{display:block;font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);margin-top:4px;}
+
   .balance-chip{
     font-family:var(--mono); font-size:0.85rem; color:var(--teal); background:rgba(62,155,142,0.1);
     border:1px solid var(--teal); border-radius:999px; padding:6px 14px; display:inline-flex; align-items:center; gap:6px;
@@ -637,6 +645,39 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'), 2600);
 }
 
+// --- Friendly error rendering ---------------------------------------------
+// Maps the PolicyWallet contract's Error enum to plain-language messages,
+// and falls back to a trimmed version of whatever the SDK/Freighter/Horizon
+// threw for anything that isn't a recognized contract error.
+const CONTRACT_ERRORS = {
+  1: 'The contract has not been initialized yet.',
+  2: 'This contract has already been initialized — it can only run once.',
+  3: 'This would exceed the daily spending limit.',
+  4: 'Not enough signer weight to meet the required threshold.',
+  5: 'This session key has expired.',
+  6: 'This session key would exceed its own budget.',
+  7: 'Signature does not match a registered owner key.',
+  8: 'Signature verification failed.',
+  9: 'This account is not an authorized admin for this wallet.'
+};
+function friendlyError(err){
+  const raw = (err && err.message) ? err.message : String(err);
+  const match = raw.match(/Error\(Contract,\s*#(\d+)\)/);
+  if (match){
+    const code = Number(match[1]);
+    return { text: CONTRACT_ERRORS[code] || ('Contract rejected this (error #' + code + ').'), code: 'Error #' + code };
+  }
+  // Trim anything else to a single readable line.
+  const short = raw.split('\n')[0].slice(0, 140);
+  return { text: short, code: null };
+}
+function showError(el, err){
+  const { text, code } = friendlyError(err);
+  el.className = 'send-result show';
+  el.innerHTML = '<div class="error-box"><span class="eicon">⚠</span><div class="etext">' + text +
+    (code ? '<span class="ecode">' + code + '</span>' : '') + '</div></div>';
+}
+
 function switchPolicyFields(){
   const type = document.getElementById('ptype').value;
   document.querySelectorAll('.policy-fields').forEach(el=>{
@@ -812,7 +853,7 @@ async function sealSessionKeyOnChain(){
       '<div class="code-note" style="margin-top:8px;font-size:0.7rem;">session secret (testnet demo — copy if you want to sign with it): ' + sessionKeypair.secret() + '</div>';
     addPolicyCard('Session key', 'Budget <b>' + budget + ' XLM</b>, expires in <b>' + ttlHours + 'h</b> · <span style="color:var(--teal);">on-chain ✓</span>', data, extraHtml);
   }catch(err){
-    resultEl.textContent = '⚠ Failed: ' + (err.message || err);
+    showError(resultEl, err);
   }
 }
 
@@ -1032,10 +1073,12 @@ async function sendPayment(){
     resultEl.innerHTML = '✓ Sent. <a href="https://stellar.expert/explorer/testnet/tx/' + submitted.hash + '" target="_blank" rel="noopener">View on Stellar Expert →</a>';
     toast('Payment submitted to testnet');
   }catch(err){
-    const msg = err?.response?.data?.extras?.result_codes
-      ? JSON.stringify(err.response.data.extras.result_codes)
-      : (err.message || String(err));
-    resultEl.textContent = '⚠ Failed: ' + msg;
+    const codes = err?.response?.data?.extras?.result_codes;
+    if (codes){
+      showError(resultEl, { message: 'Payment rejected by the network (' + JSON.stringify(codes) + ')' });
+    } else {
+      showError(resultEl, err);
+    }
   }
 }
 
