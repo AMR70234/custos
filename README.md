@@ -124,6 +124,18 @@ before you rely on it.
   ticking "expires in Xh Ym Zs" that updates every second.
 - **Network status dot** and **copy contract ID** button next to the
   live contract state panel.
+- **Disconnect wallet** button, quick amount buttons (25% / 50% / Max) on
+  Send, and an insufficient-balance warning before you try to sign.
+- **Send preview step**: clicking "Review send" shows what's about to
+  happen (amount, destination, network) before Freighter ever opens; the
+  button then becomes "Confirm & sign in Freighter".
+- **Plain-language tooltips** (hover the "?" marks) next to threshold,
+  budget, and expiry fields.
+- **Filter tabs** on Active policies (All / Session keys / Limits /
+  Multisig) so a long list stays easy to scan.
+- Cleaner success confirmations (matching the error-box style) and a
+  small spinner instead of "—" while the live contract state first loads.
+- Enter-to-submit on the Send and New Policy forms.
 
 ## Ideas to extend for extra points
 

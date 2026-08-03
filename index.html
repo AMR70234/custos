@@ -334,6 +334,33 @@
   .error-box .etext{font-size:0.86rem;color:var(--text);}
   .error-box .ecode{display:block;font-family:var(--mono);font-size:0.72rem;color:var(--text-dim);margin-top:4px;}
 
+  .success-box{
+    border:1px solid var(--teal); border-radius:9px; padding:12px 16px; margin-top:10px;
+    background:rgba(62,155,142,0.08); display:flex; align-items:flex-start; gap:10px;
+  }
+  .success-box .sicon{color:var(--teal);font-size:1rem;line-height:1;flex:none;margin-top:1px;}
+  .success-box .stext{font-size:0.86rem;color:var(--text);}
+  .success-box a{color:var(--gold);font-family:var(--mono);font-size:0.78rem;}
+
+  .qtip{
+    display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
+    border-radius:50%; border:1px solid var(--text-dim); color:var(--text-dim); font-size:0.66rem;
+    cursor:help; margin-left:4px; font-family:var(--mono);
+  }
+  .qtip:hover{border-color:var(--gold);color:var(--gold);}
+
+  .preview-box{
+    border:1px solid var(--gold-soft); border-radius:9px; padding:16px 18px; margin:6px 0 14px;
+    background:rgba(201,162,39,0.06); font-size:0.9rem;
+  }
+  .preview-box .prow{display:flex; justify-content:space-between; padding:4px 0; color:var(--text-muted);}
+  .preview-box .prow b{color:var(--text); font-family:var(--mono); font-size:0.85rem;}
+
+  .spinner{
+    display:inline-block; width:14px; height:14px; border:2px solid var(--hairline);
+    border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite;
+  }
+
   .balance-chip{
     font-family:var(--mono); font-size:0.85rem; color:var(--teal); background:rgba(62,155,142,0.1);
     border:1px solid var(--teal); border-radius:999px; padding:6px 14px; display:inline-flex; align-items:center; gap:6px;
@@ -513,6 +540,7 @@
         <div style="display:flex;align-items:center;gap:12px;">
           <span class="balance-chip" id="balanceChip" style="display:none;">◎ <span id="balanceValue">—</span> XLM</span>
           <button class="btn btn-ghost" id="connectBtn" onclick="connectWallet()">Connect Freighter</button>
+          <button class="btn btn-ghost" id="disconnectBtn" onclick="disconnectWallet()" style="display:none;color:var(--danger);border-color:var(--danger);">Disconnect</button>
         </div>
       </div>
 
@@ -524,9 +552,9 @@
           </button>
         </div>
         <div class="live-stats">
-          <div class="live-stat"><div class="lbl">Daily limit</div><div class="val loading" id="statLimit">—</div></div>
-          <div class="live-stat"><div class="lbl">Spent today</div><div class="val loading" id="statSpent">—</div></div>
-          <div class="live-stat"><div class="lbl">Ledger day index</div><div class="val loading" id="statDay">—</div></div>
+          <div class="live-stat"><div class="lbl">Daily limit</div><div class="val loading" id="statLimit"><span class="spinner"></span></div></div>
+          <div class="live-stat"><div class="lbl">Spent today</div><div class="val loading" id="statSpent"><span class="spinner"></span></div></div>
+          <div class="live-stat"><div class="lbl">Ledger day index</div><div class="val loading" id="statDay"><span class="spinner"></span></div></div>
         </div>
         <div class="fetch-note" id="fetchNote">Fetching current state directly from the Soroban testnet RPC…</div>
       </div>
@@ -575,10 +603,20 @@
 
         <div class="sr-pane" data-pane="send">
           <div class="field"><label for="sendDest">Destination address (G...)</label><input id="sendDest" type="text" placeholder="GABC..."></div>
-          <div class="field"><label for="sendAmount">Amount (XLM)</label><input id="sendAmount" type="number" placeholder="10"></div>
+          <div class="field">
+            <label for="sendAmount">Amount (XLM) <span class="qtip" title="How much XLM to send">?</span></label>
+            <input id="sendAmount" type="number" placeholder="10" oninput="clearSendPreview()">
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button class="theme-toggle" style="width:auto;height:auto;padding:5px 12px;font-size:0.74rem;border-radius:7px;" onclick="setSendPct(0.25)">25%</button>
+              <button class="theme-toggle" style="width:auto;height:auto;padding:5px 12px;font-size:0.74rem;border-radius:7px;" onclick="setSendPct(0.5)">50%</button>
+              <button class="theme-toggle" style="width:auto;height:auto;padding:5px 12px;font-size:0.74rem;border-radius:7px;" onclick="setSendPct(1)">Max</button>
+            </div>
+          </div>
           <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:10px;" onclick="precheckSend()">Check against policy first</button>
           <div class="precheck-box" id="sendPrecheck"></div>
-          <button class="btn btn-gold" style="width:100%;justify-content:center;" onclick="sendPayment()">Send on testnet</button>
+          <div class="precheck-box" id="balanceWarning"></div>
+          <div id="sendPreviewBox"></div>
+          <button class="btn btn-gold" style="width:100%;justify-content:center;" id="sendMainBtn" onclick="handleSendClick()">Review send</button>
           <div class="send-result" id="sendResult"></div>
           <div class="code-note" style="margin-top:14px;">This sends a standard Stellar payment from your connected Freighter account. Custos's daily-limit / multisig rules are enforced when the sending account <i>is</i> the policy-wallet contract; here they're shown as a pre-flight check against the live limit above so you can see the same logic before it moves real funds.</div>
         </div>
@@ -614,12 +652,12 @@
             <div class="field"><label for="limitAmount">Ceiling (XLM / 24h)</label><input id="limitAmount" type="number" placeholder="500"></div>
           </div>
           <div class="policy-fields" data-type="multisig">
-            <div class="field"><label for="msThreshold">Required weight</label><input id="msThreshold" type="number" placeholder="2"></div>
+            <div class="field"><label for="msThreshold">Required weight <span class="qtip" title="Total signer weight needed before a transaction goes through">?</span></label><input id="msThreshold" type="number" placeholder="2"></div>
             <div class="field"><label for="msOwners">Owner keys (comma-separated)</label><input id="msOwners" type="text" placeholder="GABC..., GDEF..."></div>
           </div>
           <div class="policy-fields" data-type="session">
-            <div class="field"><label for="sessBudget">Budget (XLM)</label><input id="sessBudget" type="number" placeholder="50"></div>
-            <div class="field"><label for="sessTtl">Expires in (hours)</label><input id="sessTtl" type="number" placeholder="24"></div>
+            <div class="field"><label for="sessBudget">Budget (XLM) <span class="qtip" title="Max this session key can ever spend, separate from your daily limit">?</span></label><input id="sessBudget" type="number" placeholder="50"></div>
+            <div class="field"><label for="sessTtl">Expires in (hours) <span class="qtip" title="This key stops working automatically after this many hours">?</span></label><input id="sessTtl" type="number" placeholder="24"></div>
             <div class="code-note">Sealing a session key here calls <code>add_session_key</code> on the deployed contract for real — needs a connected wallet to sign.</div>
           </div>
 
@@ -630,6 +668,12 @@
 
         <div class="panel">
           <h3>Active policies</h3>
+          <div class="sr-tabs" style="margin-bottom:16px;">
+            <div class="sr-tab active" data-filter="all" onclick="filterPolicies('all')">All</div>
+            <div class="sr-tab" data-filter="session_key" onclick="filterPolicies('session_key')">Session keys</div>
+            <div class="sr-tab" data-filter="daily_spending_limit" onclick="filterPolicies('daily_spending_limit')">Limits</div>
+            <div class="sr-tab" data-filter="multisig_threshold" onclick="filterPolicies('multisig_threshold')">Multisig</div>
+          </div>
           <div class="policy-list" id="policyList">
             <div class="empty-state">No policies sealed yet<br><span style="font-size:0.78rem;">Create your first rule using the form on the left →</span></div>
           </div>
@@ -736,6 +780,7 @@ async function connectWallet(){
     renderQr(pk);
     fetchBalance(pk);
     fetchActivity(pk);
+    toggleWalletButtons(true);
     toast('Wallet connected via Freighter');
   }catch(e){
     const manual = prompt('Freighter not detected (or not installed/unlocked). Paste a Stellar public key (G...) to preview the dashboard:');
@@ -746,11 +791,30 @@ async function connectWallet(){
       renderQr(manual);
       fetchBalance(manual);
       fetchActivity(manual);
+      toggleWalletButtons(true);
       toast('Preview mode: address entered manually — sending will still require Freighter to sign');
     }
   }
 }
 let connectedPublicKey = null;
+let currentBalance = 0;
+
+function toggleWalletButtons(connected){
+  document.getElementById('connectBtn').style.display = connected ? 'none' : 'inline-flex';
+  document.getElementById('disconnectBtn').style.display = connected ? 'inline-flex' : 'none';
+}
+
+function disconnectWallet(){
+  connectedPublicKey = null;
+  currentBalance = 0;
+  document.getElementById('walletAddr').textContent = 'No wallet connected';
+  document.getElementById('receiveAddr').textContent = 'Connect a wallet above to see your receiving address';
+  document.getElementById('balanceChip').style.display = 'none';
+  document.getElementById('qrWrap').style.display = 'none';
+  toggleWalletButtons(false);
+  fetchActivity(); // falls back to contract-owner activity
+  toast('Wallet disconnected');
+}
 
 // --- Policy creation -----------------------------------------------------
 // Session keys are sealed with a REAL InvokeHostFunction call to
@@ -784,6 +848,30 @@ function createPolicy(){
   toast('Policy created in UI — this type maps to initialize(), which can only run once on a live contract. See README.');
 }
 
+function filterPolicies(type){
+  document.querySelectorAll('#policyList').forEach(() => {}); // no-op guard
+  document.querySelectorAll('.sr-tabs [data-filter]').forEach(t => t.classList.toggle('active', t.dataset.filter === type));
+  const cards = document.querySelectorAll('#policyList .policy-card');
+  let visibleCount = 0;
+  cards.forEach(c => {
+    const show = type === 'all' || c.dataset.ptype === type;
+    c.style.display = show ? 'flex' : 'none';
+    if (show) visibleCount++;
+  });
+  let empty = document.getElementById('policyEmptyFiltered');
+  if (visibleCount === 0 && cards.length > 0){
+    if (!empty){
+      empty = document.createElement('div');
+      empty.id = 'policyEmptyFiltered';
+      empty.className = 'empty-state';
+      document.getElementById('policyList').appendChild(empty);
+    }
+    empty.textContent = 'No policies of this type yet';
+  } else if (empty){
+    empty.remove();
+  }
+}
+
 function addPolicyCard(label, detail, data, extraHtml){
   const list = document.getElementById('policyList');
   if (list.querySelector('.empty-state')) list.innerHTML = '';
@@ -791,6 +879,7 @@ function addPolicyCard(label, detail, data, extraHtml){
   const card = document.createElement('div');
   card.className = 'policy-card';
   card.id = id;
+  card.dataset.ptype = data.type;
   card.innerHTML = `
     <div style="flex:1;">
       <div class="ptype">${label}</div>
@@ -867,7 +956,7 @@ async function sealSessionKeyOnChain(){
     }
     if (final.status !== 'SUCCESS') throw new Error('Transaction ' + final.status + ' — check the hash on Stellar Expert for details');
 
-    resultEl.innerHTML = '✓ Session key sealed on-chain. <a href="https://stellar.expert/explorer/testnet/tx/' + sendResult.hash + '" target="_blank" rel="noopener">View on Stellar Expert →</a>';
+    resultEl.innerHTML = '<div class="success-box"><span class="sicon">✓</span><div class="stext">Session key sealed on-chain.<br><a href="https://stellar.expert/explorer/testnet/tx/' + sendResult.hash + '" target="_blank" rel="noopener">View on Stellar Expert →</a></div></div>';
     toast('add_session_key confirmed on testnet');
 
     const expiresAt = Date.now() + ttlHours * 3600 * 1000;
@@ -1042,6 +1131,35 @@ function copyContractId(){
   navigator.clipboard.writeText(CONTRACT_ID).then(()=>toast('Contract ID copied'));
 }
 
+function setSendPct(pct){
+  if (!connectedPublicKey){ toast('Connect a wallet first'); return; }
+  // Leave a small buffer below 100% so the account keeps its minimum reserve + fees.
+  const usable = Math.max(0, currentBalance - 1);
+  const amt = pct === 1 ? usable : usable * pct;
+  document.getElementById('sendAmount').value = amt.toFixed(2);
+  clearSendPreview();
+  checkBalanceWarning();
+}
+
+function checkBalanceWarning(){
+  const amount = parseFloat(document.getElementById('sendAmount').value || '0');
+  const box = document.getElementById('balanceWarning');
+  if (connectedPublicKey && amount > currentBalance){
+    box.className = 'precheck-box show fail';
+    box.textContent = '⚠ Amount exceeds your balance (' + currentBalance.toLocaleString(undefined,{maximumFractionDigits:2}) + ' XLM available).';
+  } else {
+    box.className = 'precheck-box';
+    box.textContent = '';
+  }
+}
+
+function clearSendPreview(){
+  document.getElementById('sendPreviewBox').innerHTML = '';
+  document.getElementById('sendMainBtn').textContent = 'Review send';
+  document.getElementById('sendMainBtn').onclick = handleSendClick;
+  checkBalanceWarning();
+}
+
 function precheckSend(){
   const amount = parseFloat(document.getElementById('sendAmount').value || '0');
   const box = document.getElementById('sendPrecheck');
@@ -1057,6 +1175,28 @@ function precheckSend(){
   }
 }
 
+// Step 1: show a plain-language preview instead of jumping straight to Freighter.
+function handleSendClick(){
+  const dest = (document.getElementById('sendDest').value || '').trim();
+  const amount = document.getElementById('sendAmount').value;
+
+  if (!connectedPublicKey){ toast('Connect a wallet first'); return; }
+  if (!dest || !dest.startsWith('G') || dest.length < 10){ toast('Enter a valid destination G... address'); return; }
+  if (!amount || parseFloat(amount) <= 0){ toast('Enter an amount greater than 0'); return; }
+  if (parseFloat(amount) > currentBalance){ checkBalanceWarning(); toast('Amount exceeds your balance'); return; }
+
+  const previewBox = document.getElementById('sendPreviewBox');
+  previewBox.innerHTML = `
+    <div class="preview-box">
+      <div class="prow"><span>Sending</span><b>${parseFloat(amount).toLocaleString()} XLM</b></div>
+      <div class="prow"><span>To</span><b>${dest.slice(0,6)}…${dest.slice(-6)}</b></div>
+      <div class="prow"><span>Network</span><b>Testnet</b></div>
+    </div>`;
+  const btn = document.getElementById('sendMainBtn');
+  btn.textContent = 'Confirm & sign in Freighter';
+  btn.onclick = sendPayment;
+}
+
 async function sendPayment(){
   const resultEl = document.getElementById('sendResult');
   resultEl.className = 'send-result show';
@@ -1065,9 +1205,6 @@ async function sendPayment(){
   const dest = (document.getElementById('sendDest').value || '').trim();
   const amount = document.getElementById('sendAmount').value;
 
-  if (!connectedPublicKey){ resultEl.textContent = '⚠ Connect a wallet first.'; return; }
-  if (!dest || !dest.startsWith('G')){ resultEl.textContent = '⚠ Enter a valid destination G... address.'; return; }
-  if (!amount || parseFloat(amount) <= 0){ resultEl.textContent = '⚠ Enter an amount greater than 0.'; return; }
   if (typeof StellarSdk === 'undefined' || !window.freighterApi){
     resultEl.textContent = '⚠ Needs both the stellar-sdk script and the Freighter extension loaded — refresh and make sure Freighter is installed.';
     return;
@@ -1099,8 +1236,13 @@ async function sendPayment(){
 
     resultEl.textContent = 'Submitting to testnet…';
     const submitted = await horizon.submitTransaction(signedTx);
-    resultEl.innerHTML = '✓ Sent. <a href="https://stellar.expert/explorer/testnet/tx/' + submitted.hash + '" target="_blank" rel="noopener">View on Stellar Expert →</a>';
+    resultEl.innerHTML = '<div class="success-box"><span class="sicon">✓</span><div class="stext">Payment sent.<br><a href="https://stellar.expert/explorer/testnet/tx/' + submitted.hash + '" target="_blank" rel="noopener">View on Stellar Expert →</a></div></div>';
     toast('Payment submitted to testnet');
+    document.getElementById('sendPreviewBox').innerHTML = '';
+    document.getElementById('sendMainBtn').textContent = 'Review send';
+    document.getElementById('sendMainBtn').onclick = handleSendClick;
+    fetchBalance(connectedPublicKey);
+    fetchActivity(connectedPublicKey);
   }catch(err){
     const codes = err?.response?.data?.extras?.result_codes;
     if (codes){
@@ -1110,6 +1252,7 @@ async function sendPayment(){
     }
   }
 }
+
 
 // --- Theme toggle ----------------------------------------------------------
 function toggleTheme(){
@@ -1138,9 +1281,11 @@ async function fetchBalance(address){
     const horizon = new StellarSdk.Horizon.Server('https://horizon-testnet.stellar.org');
     const account = await horizon.loadAccount(address);
     const native = account.balances.find(b => b.asset_type === 'native');
-    val.textContent = native ? Number(native.balance).toLocaleString(undefined, {maximumFractionDigits: 2}) : '0';
+    currentBalance = native ? Number(native.balance) : 0;
+    val.textContent = currentBalance.toLocaleString(undefined, {maximumFractionDigits: 2});
     chip.style.display = 'inline-flex';
   }catch(err){
+    currentBalance = 0;
     chip.style.display = 'none'; // e.g. unfunded account — fail quietly, this is a nice-to-have
   }
 }
@@ -1182,6 +1327,18 @@ async function fetchActivity(account){
   }
 }
 window.addEventListener('DOMContentLoaded', () => { fetchActivity(); });
+
+// --- Enter-to-submit -------------------------------------------------------
+window.addEventListener('DOMContentLoaded', () => {
+  ['sendDest','sendAmount'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('sendMainBtn').click(); });
+  });
+  ['limitAmount','msThreshold','msOwners','sessBudget','sessTtl'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') createPolicy(); });
+  });
+});
 </script>
 
 </body>
