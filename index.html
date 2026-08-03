@@ -310,6 +310,22 @@
   .send-result.show{display:block;}
   .send-result a{color:var(--gold);}
 
+  .onboard-strip{
+    display:flex; gap:0; border:1px solid var(--hairline); border-radius:var(--radius);
+    overflow:hidden; margin-bottom:28px; background:var(--surface);
+  }
+  .onboard-step{flex:1; padding:16px 20px; display:flex; align-items:center; gap:12px; position:relative;}
+  .onboard-step:not(:last-child)::after{content:"→"; position:absolute; right:-2px; top:50%; transform:translateY(-50%); color:var(--text-dim); font-size:1rem;}
+  .onboard-step .onum{
+    width:26px; height:26px; border-radius:50%; background:var(--gold); color:#1B1500;
+    display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:0.78rem; font-weight:700; flex:none;
+  }
+  .onboard-step .otext{font-size:0.82rem; color:var(--text-muted); line-height:1.3;}
+  .onboard-step .otext b{color:var(--text); display:block; font-size:0.86rem;}
+  @media(max-width:780px){.onboard-strip{flex-direction:column;} .onboard-step:not(:last-child)::after{display:none;}}
+
+  .hint{font-size:0.78rem; color:var(--text-dim); margin-top:-10px; margin-bottom:14px; line-height:1.4;}
+
   .error-box{
     border:1px solid var(--danger); border-radius:9px; padding:12px 16px; margin-top:10px;
     background:rgba(193,91,74,0.08); display:flex; align-items:flex-start; gap:10px;
@@ -486,6 +502,12 @@
         <span id="modePill" class="status-pill live">Live on Soroban testnet</span>
       </div>
 
+      <div class="onboard-strip">
+        <div class="onboard-step"><span class="onum">1</span><span class="otext"><b>Connect</b>Link your Stellar wallet</span></div>
+        <div class="onboard-step"><span class="onum">2</span><span class="otext"><b>Set a rule</b>Pick a limit, key, or approval rule</span></div>
+        <div class="onboard-step"><span class="onum">3</span><span class="otext"><b>It's enforced</b>The wallet applies it automatically</span></div>
+      </div>
+
       <div class="wallet-card">
         <div class="addr" id="walletAddr">No wallet connected</div>
         <div style="display:flex;align-items:center;gap:12px;">
@@ -586,6 +608,7 @@
               <option value="session">Session key</option>
             </select>
           </div>
+          <p class="hint" id="ptypeHint">Cap how much can move out per day without extra approval.</p>
 
           <div class="policy-fields active" data-type="limit">
             <div class="field"><label for="limitAmount">Ceiling (XLM / 24h)</label><input id="limitAmount" type="number" placeholder="500"></div>
@@ -608,7 +631,7 @@
         <div class="panel">
           <h3>Active policies</h3>
           <div class="policy-list" id="policyList">
-            <div class="empty-state">No policies sealed yet</div>
+            <div class="empty-state">No policies sealed yet<br><span style="font-size:0.78rem;">Create your first rule using the form on the left →</span></div>
           </div>
         </div>
       </div>
@@ -678,11 +701,17 @@ function showError(el, err){
     (code ? '<span class="ecode">' + code + '</span>' : '') + '</div></div>';
 }
 
+const PTYPE_HINTS = {
+  limit: 'Cap how much can move out per day without extra approval.',
+  multisig: 'Require more than one signer to agree before funds move.',
+  session: 'Hand a dApp or game a temporary key with its own limit and expiry.'
+};
 function switchPolicyFields(){
   const type = document.getElementById('ptype').value;
   document.querySelectorAll('.policy-fields').forEach(el=>{
     el.classList.toggle('active', el.dataset.type === type);
   });
+  document.getElementById('ptypeHint').textContent = PTYPE_HINTS[type];
 }
 
 // --- Wallet connection -------------------------------------------------
