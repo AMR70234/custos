@@ -1,14 +1,27 @@
 # Custos — Policy-Governed Wallets on Stellar
 
-A smart wallet built on Soroban's custom authorization framework. Instead of
-one key that can move everything, the wallet owner attaches on-chain
-**policies**: a rolling daily spending limit, a weighted multisig threshold,
-and expiring, budget-capped **session keys** for dApps or games.
+**🔗 Live: [custos-stellar.vercel.app](https://custos-stellar.vercel.app/)**
+**📦 Contract on Stellar Lab: [CCDLUCHHH4IIRIXTLRALOCZZGTVDGPBZDE5FY6TTMQRUFDEZ2G7BXGZ3](https://lab.stellar.org/r/testnet/contract/CCDLUCHHH4IIRIXTLRALOCZZGTVDGPBZDE5FY6TTMQRUFDEZ2G7BXGZ3)**
+
+A reference implementation of policy-based custom authorization on
+Soroban — a pattern, not just an app. It shows how to give a Stellar
+account programmable rules (spending limits, multisig thresholds,
+expiring session keys) enforced by the account's own
+`CustomAccountInterface`, so any team building a Soroban wallet or
+account-abstraction product has a working `__check_auth` to start from
+instead of writing one from scratch. The included dApp is a working
+demonstration of the pattern — connect a real wallet, seal a real
+session key on-chain, send/receive real testnet payments — not a mockup.
+
+Instead of one key that can move everything, the wallet owner attaches
+on-chain **policies**: a rolling daily spending limit, a weighted
+multisig threshold, and expiring, budget-capped **session keys** for
+dApps or games.
 
 ## What's in this folder
 
 ```
-index.html                         → landing/pitch page + working dApp UI (open directly in a browser)
+index.html                         → landing/pitch page + working dApp UI (also live at the link above)
 contracts/policy-wallet/src/lib.rs → Soroban contract: CustomAccountInterface + policy logic
 contracts/policy-wallet/Cargo.toml → build manifest
 ```
