@@ -323,7 +323,7 @@
           <div class="app-title">Wallet dashboard</div>
           <p style="color:var(--text-muted);font-size:0.92rem;margin-top:6px;">Manage policies on your Custos smart wallet.</p>
         </div>
-        <span id="modePill" class="status-pill demo">Demo mode — connect a contract to go live</span>
+        <span id="modePill" class="status-pill live">Live on Soroban testnet</span>
       </div>
 
       <div class="wallet-card">
@@ -356,7 +356,7 @@
           </div>
 
           <button class="btn btn-gold" style="width:100%;justify-content:center;margin-top:6px;" onclick="createPolicy()">Seal policy</button>
-          <div class="code-note" id="contractNote">contract_id: not set · calls will be simulated locally until you deploy contracts/policy-wallet and wire the ID in here</div>
+          <div class="code-note" id="contractNote">contract_id: <b>CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV</b> · deployed &amp; initialized on testnet<br><a href="https://lab.stellar.org/r/testnet/contract/CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV" target="_blank" rel="noopener" style="color:var(--gold);">View contract on Stellar Lab →</a></div>
         </div>
 
         <div class="panel">
@@ -467,7 +467,7 @@ function createPolicy(){
       <circle cx="50" cy="50" r="8" fill="#3E9B8E"/>
     </svg>`;
   list.prepend(card);
-  toast('Policy sealed (simulated — deploy contract to enforce on-chain)');
+  toast("Policy created in UI — call add_session_key / initialize on-chain via CLI or SDK to make it binding");
 }
 </script>
 
