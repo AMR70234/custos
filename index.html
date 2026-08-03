@@ -513,6 +513,7 @@
   </div>
 </footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stellar-freighter-api/5.0.0/index.min.js"></script>
 <script src="https://unpkg.com/@stellar/stellar-sdk@13/dist/stellar-sdk.min.js"></script>
 <div class="toast" id="toast"></div>
 
@@ -544,20 +545,21 @@ function switchPolicyFields(){
 async function connectWallet(){
   const addrEl = document.getElementById('walletAddr');
   try{
-    if (window.freighterApi){
-      const access = await window.freighterApi.requestAccess?.() ?? await window.freighterApi.getPublicKey?.();
-      const pk = typeof access === 'string' ? access : access?.address;
-      if (pk){
-        addrEl.innerHTML = 'Connected · <b>' + pk.slice(0,4) + '…' + pk.slice(-4) + '</b>';
-        connectedPublicKey = pk;
-        document.getElementById('receiveAddr').textContent = pk;
-        toast('Wallet connected via Freighter');
-        return;
-      }
-    }
-    throw new Error('no-extension');
+    if (!window.freighterApi) throw new Error('no-extension');
+
+    const conn = await window.freighterApi.isConnected();
+    if (!conn.isConnected) throw new Error('no-extension');
+
+    const access = await window.freighterApi.requestAccess();
+    if (access.error) throw new Error(access.error.message || 'access denied');
+
+    const pk = access.address;
+    addrEl.innerHTML = 'Connected · <b>' + pk.slice(0,4) + '…' + pk.slice(-4) + '</b>';
+    connectedPublicKey = pk;
+    document.getElementById('receiveAddr').textContent = pk;
+    toast('Wallet connected via Freighter');
   }catch(e){
-    const manual = prompt('Freighter not detected. Paste a Stellar public key (G...) to preview the dashboard:');
+    const manual = prompt('Freighter not detected (or not installed/unlocked). Paste a Stellar public key (G...) to preview the dashboard:');
     if (manual){
       addrEl.innerHTML = 'Connected (manual) · <b>' + manual.slice(0,4) + '…' + manual.slice(-4) + '</b>';
       connectedPublicKey = manual;
@@ -784,10 +786,10 @@ async function sendPayment(){
     resultEl.textContent = 'Waiting for Freighter signature…';
     const signResult = await window.freighterApi.signTransaction(tx.toXDR(), {
       network: 'TESTNET',
-      networkPassphrase: StellarSdk.Networks.TESTNET
+      address: connectedPublicKey
     });
-    const signedXdr = typeof signResult === 'string' ? signResult : signResult.signedTxXdr;
-    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, StellarSdk.Networks.TESTNET);
+    if (signResult.error) throw new Error(signResult.error.message || 'signing failed');
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signResult.signedTxXdr, StellarSdk.Networks.TESTNET);
 
     resultEl.textContent = 'Submitting to testnet…';
     const submitted = await horizon.submitTransaction(signedTx);
