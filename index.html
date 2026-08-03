@@ -462,6 +462,7 @@
   </div>
 </footer>
 
+<script src="https://unpkg.com/@stellar/stellar-sdk@13/dist/stellar-sdk.min.js"></script>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -569,7 +570,7 @@ async function fetchLiveState(){
   note.textContent = 'Fetching current state directly from the Soroban testnet RPC…';
 
   try{
-    const StellarSdk = await import('https://esm.sh/@stellar/stellar-sdk@13?bundle');
+    if (typeof StellarSdk === 'undefined') throw new Error('stellar-sdk script has not loaded yet');
     const server = new StellarSdk.rpc.Server(RPC_URL);
     const instanceKey = StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance();
     const entry = await server.getContractData(CONTRACT_ID, instanceKey, StellarSdk.rpc.Durability.Persistent);
