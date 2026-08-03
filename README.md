@@ -52,6 +52,47 @@ changed across recent protocol releases, so diff this against
 https://stellar.github.io/js-stellar-sdk/guides/00-protocol-27-soroban-auth/
 before you rely on it.
 
+## Traction so far
+
+We're pre-launch — no inflated numbers here. What's real:
+
+- Deployed to testnet **twice**: once initially, and once again after
+  finding and fixing a real authorization bug (any address could seal a
+  session key for itself). The fix is verifiable on-chain — the rejected
+  transaction from an unauthorized account is on Stellar Expert.
+- Every feature in this README that says "real" or "live" is checkable
+  right now via the CLI commands or on-chain links given above — nothing
+  here is asserted without a way to verify it.
+
+**Next 30 days:** onboard a small group of testnet users (via the Stellar
+Developer Discord) to stress-test the policy engine — daily-limit edge
+cases, concurrent session keys, threshold changes — before considering a
+formal security audit ahead of mainnet.
+
+## Why Stellar
+
+- **Soroban's custom-auth is a protocol primitive, not a bolt-on.** On
+  Ethereum or Solana, a policy-governed wallet like this needs an external
+  smart-contract-wallet standard (Argent, Safe, etc.) wrapping the base
+  account. Stellar's `CustomAccountInterface` gives you the same power —
+  the contract itself defines what counts as authorization — as a native
+  part of the protocol.
+- **Low, predictable fees.** A wallet built around session keys means many
+  small, frequent transactions (each dApp interaction, each spend check).
+  Stellar's fee model makes that pattern cheap enough to be practical.
+- **Fast finality (~5s).** Session-key spending needs to feel instant to
+  the end user; Stellar's confirmation time supports that without extra
+  UX workarounds (optimistic UI, etc.).
+
+## Roadmap to mainnet
+
+| Stage | What it needs |
+|---|---|
+| **Now** | Deployed on testnet; the owner-check auth bug is fixed and verifiable on-chain. |
+| **Before an audit** | Parse real spend amounts out of `auth_contexts` in `estimate_spend()`; add a policy **revocation** path. |
+| **Security audit** | External review of `lib.rs`, same bar as any DeFi/wallet contract handling user funds. |
+| **Mainnet beta** | Limited launch with a hard cap on funds per wallet while the contract accumulates real-world usage. |
+
 ## Suggested pitch structure (3–5 min demo)
 
 1. **Problem (30s):** one leaked key = total loss. No native concept of
