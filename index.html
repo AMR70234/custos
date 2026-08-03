@@ -174,6 +174,16 @@
   .stack-strip{display:flex;flex-wrap:wrap;gap:10px;}
   .chip{font-family:var(--mono);font-size:0.8rem;padding:8px 16px;border:1px solid var(--hairline);border-radius:999px;color:var(--text-muted);}
 
+  .cmp-table{width:100%;border-collapse:collapse;border:1px solid var(--hairline);border-radius:var(--radius);overflow:hidden;}
+  .cmp-table th, .cmp-table td{padding:16px 20px;text-align:left;border-bottom:1px solid var(--hairline);font-size:0.92rem;}
+  .cmp-table th{font-family:var(--mono);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);background:var(--surface-raised);}
+  .cmp-table td:first-child{color:var(--text-muted);width:34%;}
+  .cmp-table tr:last-child td{border-bottom:none;}
+  .cmp-table .no{color:#D98A78;}
+  .cmp-table .yes{color:var(--teal);}
+  .cmp-table td.custos-col{background:rgba(62,155,142,0.05);}
+  @media(max-width:640px){.cmp-table{font-size:0.82rem;} .cmp-table th, .cmp-table td{padding:10px 12px;}}
+
   footer{border-top:1px solid var(--hairline);padding:40px 0;position:relative;z-index:1;}
   footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
   footer p{color:var(--text-dim);font-size:0.85rem;}
@@ -389,6 +399,25 @@
     </div>
   </header>
 
+  <section id="compare">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">How it's different</div>
+        <h2>A regular wallet vs. a policy-governed one</h2>
+      </div>
+      <table class="cmp-table">
+        <thead><tr><th></th><th>Regular Stellar wallet</th><th>Custos</th></tr></thead>
+        <tbody>
+          <tr><td>Who can move funds</td><td class="no">Anyone with the one signing key</td><td class="yes custos-col">Owners + rules the contract enforces</td></tr>
+          <tr><td>Daily spending limit</td><td class="no">Not built in</td><td class="yes custos-col">Rolling 24h ceiling, on-chain</td></tr>
+          <tr><td>Temporary app access</td><td class="no">Share the real key or nothing</td><td class="yes custos-col">Scoped, expiring session keys</td></tr>
+          <tr><td>Multi-approver control</td><td class="no">Needs external tooling</td><td class="yes custos-col">Weighted multisig threshold</td></tr>
+          <tr><td>Where rules live</td><td class="no">—</td><td class="yes custos-col">Inside <code>__check_auth</code>, not a backend</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section id="how">
     <div class="wrap">
       <div class="section-head">
@@ -459,7 +488,7 @@
 
       <div class="live-panel">
         <div class="live-panel-top">
-          <h3>Live contract state</h3>
+          <h3><span id="netDot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text-dim);margin-right:8px;"></span>Live contract state</h3>
           <button class="refresh-btn" id="refreshBtn" onclick="fetchLiveState()">
             <span class="spin">⟳</span> Refresh from testnet
           </button>
@@ -563,7 +592,7 @@
           </div>
 
           <button class="btn btn-gold" style="width:100%;justify-content:center;margin-top:6px;" onclick="createPolicy()">Seal policy</button>
-          <div class="code-note" id="contractNote">contract_id: <b>CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV</b> · deployed &amp; initialized on testnet<br><a href="https://lab.stellar.org/r/testnet/contract/CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV" target="_blank" rel="noopener" style="color:var(--gold);">View contract on Stellar Lab →</a></div>
+          <div class="code-note" id="contractNote">contract_id: <b id="contractIdText">CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV</b> <button class="theme-toggle" style="width:auto;height:auto;padding:3px 9px;font-size:0.68rem;border-radius:6px;" onclick="copyContractId()" title="Copy contract ID">copy</button> · deployed &amp; initialized on testnet<br><a href="https://lab.stellar.org/r/testnet/contract/CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV" target="_blank" rel="noopener" style="color:var(--gold);">View contract on Stellar Lab →</a></div>
         </div>
 
         <div class="panel">
@@ -653,42 +682,79 @@ let connectedPublicKey = null;
 // If a real contract_id + stellar-sdk invocation is wired in later, replace
 // simulateSeal() with an actual InvokeHostFunction call to add_session_key /
 // initialize on the deployed PolicyWallet contract.
+let policyCounter = 0;
 function createPolicy(){
   const type = document.getElementById('ptype').value;
   const list = document.getElementById('policyList');
   if (list.querySelector('.empty-state')) list.innerHTML = '';
 
-  let label, detail;
+  let label, detail, data;
+  const createdAt = new Date().toISOString();
   if (type === 'limit'){
-    const amt = document.getElementById('limitAmount').value || '500';
+    const amt = parseFloat(document.getElementById('limitAmount').value || '500');
     label = 'Daily spending limit';
     detail = 'Ceiling <b>' + amt + ' XLM</b> per rolling 24h window';
+    data = { type: 'daily_spending_limit', daily_limit_xlm: amt, created_at: createdAt };
   } else if (type === 'multisig'){
-    const th = document.getElementById('msThreshold').value || '2';
+    const th = parseFloat(document.getElementById('msThreshold').value || '2');
+    const owners = document.getElementById('msOwners').value.split(',').map(s=>s.trim()).filter(Boolean);
     label = 'Multisig threshold';
     detail = 'Requires <b>' + th + '</b> combined signer weight';
+    data = { type: 'multisig_threshold', required_weight: th, owners, created_at: createdAt };
   } else {
-    const budget = document.getElementById('sessBudget').value || '50';
-    const ttl = document.getElementById('sessTtl').value || '24';
+    const budget = parseFloat(document.getElementById('sessBudget').value || '50');
+    const ttlHours = parseFloat(document.getElementById('sessTtl').value || '24');
+    const expiresAt = Date.now() + ttlHours * 3600 * 1000;
     label = 'Session key';
-    detail = 'Budget <b>' + budget + ' XLM</b>, expires in <b>' + ttl + 'h</b>';
+    detail = 'Budget <b>' + budget + ' XLM</b>, expires in <b>' + ttlHours + 'h</b>';
+    data = { type: 'session_key', budget_xlm: budget, ttl_hours: ttlHours, created_at: createdAt, expires_at: new Date(expiresAt).toISOString() };
   }
 
+  const id = 'policy-' + (++policyCounter);
   const card = document.createElement('div');
   card.className = 'policy-card';
+  card.id = id;
   card.innerHTML = `
-    <div>
+    <div style="flex:1;">
       <div class="ptype">${label}</div>
       <div class="pdetail">${detail}</div>
+      ${type === 'session' ? '<div class="pdetail" style="color:var(--teal);margin-top:4px;" data-countdown="' + data.expires_at + '"></div>' : ''}
     </div>
-    <svg class="seal-mini" viewBox="0 0 100 100">
-      <circle cx="50" cy="50" r="46" fill="none" stroke="#C9A227" stroke-width="3"/>
-      <path d="M50 20 L68 32 L68 58 L50 78 L32 58 L32 32 Z" fill="none" stroke="#EDEAE1" stroke-width="2"/>
-      <circle cx="50" cy="50" r="8" fill="#3E9B8E"/>
-    </svg>`;
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="theme-toggle" style="width:auto;height:auto;padding:5px 11px;font-size:0.68rem;border-radius:6px;" onclick='exportPolicyJson(${JSON.stringify(JSON.stringify(data))})' title="Export as JSON">export</button>
+      <svg class="seal-mini" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="46" fill="none" stroke="#C9A227" stroke-width="3"/>
+        <path d="M50 20 L68 32 L68 58 L50 78 L32 58 L32 32 Z" fill="none" stroke="#EDEAE1" stroke-width="2"/>
+        <circle cx="50" cy="50" r="8" fill="#3E9B8E"/>
+      </svg>
+    </div>`;
   list.prepend(card);
   toast('Policy created in UI — call add_session_key / initialize on-chain via CLI or SDK to make it binding');
 }
+
+function exportPolicyJson(jsonStr){
+  const data = JSON.parse(jsonStr);
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'custos-policy-' + data.type + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Policy exported as JSON');
+}
+
+// Live countdown for session-key cards, ticking every second.
+setInterval(() => {
+  document.querySelectorAll('[data-countdown]').forEach(el => {
+    const remaining = new Date(el.dataset.countdown).getTime() - Date.now();
+    if (remaining <= 0){ el.textContent = 'Expired'; el.style.color = 'var(--danger)'; return; }
+    const h = Math.floor(remaining / 3600000);
+    const m = Math.floor((remaining % 3600000) / 60000);
+    const s = Math.floor((remaining % 60000) / 1000);
+    el.textContent = 'Expires in ' + h + 'h ' + m + 'm ' + s + 's';
+  });
+}, 1000);
 
 // --- Live contract state -------------------------------------------------
 // Reads the real "SPEND" entry out of the deployed contract's instance
@@ -731,9 +797,11 @@ async function fetchLiveState(){
     [elLimit, elSpent, elDay].forEach(el => el.classList.remove('loading'));
     note.className = 'fetch-note ok';
     note.textContent = '✓ Live from ' + RPC_URL + ' · contract ' + CONTRACT_ID.slice(0,6) + '…' + CONTRACT_ID.slice(-4);
+    document.getElementById('netDot').style.background = 'var(--teal)';
   }catch(err){
     note.className = 'fetch-note err';
     note.textContent = '⚠ Could not reach the RPC from this browser (' + (err.message || err) + '). Verify manually: stellar contract invoke --id ' + CONTRACT_ID + ' --source my-wallet --network testnet -- get_spend_policy';
+    document.getElementById('netDot').style.background = 'var(--danger)';
     // Fall back to the last figures verified via CLI, clearly labeled as such.
     if (!lastKnownPolicy){
       elLimit.textContent = '500 XLM*';
@@ -814,6 +882,10 @@ function switchSrTab(name){
 function copyAddress(){
   if (!connectedPublicKey){ toast('Connect a wallet first'); return; }
   navigator.clipboard.writeText(connectedPublicKey).then(()=>toast('Address copied'));
+}
+
+function copyContractId(){
+  navigator.clipboard.writeText(CONTRACT_ID).then(()=>toast('Contract ID copied'));
 }
 
 function precheckSend(){

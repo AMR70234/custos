@@ -98,6 +98,14 @@ before you rely on it.
   `initialize` calls, and payments, each linking to Stellar Expert.
 - **Light/dark theme toggle** and mobile-responsive layout tweaks (nav
   collapses on small screens, stat grids stack to one column, etc).
+- **Comparison table** on the landing page contrasting a regular Stellar
+  wallet with a policy-governed one, row by row.
+- **Export policy as JSON**: each policy card created in the UI can be
+  exported as a `.json` file, showing the structured data behind it.
+- **Live session-key countdown**: session-key policy cards show a
+  ticking "expires in Xh Ym Zs" that updates every second.
+- **Network status dot** and **copy contract ID** button next to the
+  live contract state panel.
 
 ## Ideas to extend for extra points
 
