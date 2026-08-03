@@ -89,6 +89,15 @@ before you rely on it.
   preview of what *would* happen if the sending account were the
   contract. Making the contract itself custodial (funds live in the
   contract, and it authorizes its own payments) is the natural next step.
+- **Balance display**: shows the connected account's live XLM balance,
+  fetched from Horizon testnet.
+- **QR code**: the Receive tab renders a scannable QR of your address
+  (via the `qrcodejs` library), generated client-side.
+- **Recent activity feed**: real operations for the contract owner
+  account, pulled from Horizon (`GET /accounts/{id}/operations`) — deploys,
+  `initialize` calls, and payments, each linking to Stellar Expert.
+- **Light/dark theme toggle** and mobile-responsive layout tweaks (nav
+  collapses on small screens, stat grids stack to one column, etc).
 
 ## Ideas to extend for extra points
 
