@@ -556,10 +556,10 @@
 
       <div class="panel" style="margin-bottom:28px;">
         <div class="live-panel-top" style="margin-bottom:14px;">
-          <h3>Recent activity</h3>
+          <h3 id="activityTitle">Recent activity <span style="font-family:var(--mono);font-size:0.68rem;color:var(--text-dim);font-weight:400;">· contract owner</span></h3>
           <button class="refresh-btn" onclick="fetchActivity()"><span class="spin">⟳</span> Refresh</button>
         </div>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px;">Real transactions from the contract owner account, pulled from Horizon testnet — deploys, policy updates, and payments, in the order they landed on-chain.</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:16px;" id="activityDesc">Real transactions from the contract owner account, pulled from Horizon testnet — deploys, policy updates, and payments, in the order they landed on-chain. Connect a wallet to switch this to your own activity.</p>
         <div class="activity-list" id="activityList">
           <div class="skeleton-line" style="width:100%;"></div>
           <div class="skeleton-line" style="width:90%;"></div>
@@ -589,9 +589,11 @@
           <div class="policy-fields" data-type="session">
             <div class="field"><label for="sessBudget">Budget (XLM)</label><input id="sessBudget" type="number" placeholder="50"></div>
             <div class="field"><label for="sessTtl">Expires in (hours)</label><input id="sessTtl" type="number" placeholder="24"></div>
+            <div class="code-note">Sealing a session key here calls <code>add_session_key</code> on the deployed contract for real — needs a connected wallet to sign.</div>
           </div>
 
           <button class="btn btn-gold" style="width:100%;justify-content:center;margin-top:6px;" onclick="createPolicy()">Seal policy</button>
+          <div class="send-result" id="policyOnchainResult"></div>
           <div class="code-note" id="contractNote">contract_id: <b id="contractIdText">CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV</b> <button class="theme-toggle" style="width:auto;height:auto;padding:3px 9px;font-size:0.68rem;border-radius:6px;" onclick="copyContractId()" title="Copy contract ID">copy</button> · deployed &amp; initialized on testnet<br><a href="https://lab.stellar.org/r/testnet/contract/CDWSVAK3GEC2T3YZT2NCGJNEKOAOEI2EIJVKZ3CIMHTUJRDJ75VCKBFV" target="_blank" rel="noopener" style="color:var(--gold);">View contract on Stellar Lab →</a></div>
         </div>
 
@@ -663,6 +665,7 @@ async function connectWallet(){
     document.getElementById('receiveAddr').textContent = pk;
     renderQr(pk);
     fetchBalance(pk);
+    fetchActivity(pk);
     toast('Wallet connected via Freighter');
   }catch(e){
     const manual = prompt('Freighter not detected (or not installed/unlocked). Paste a Stellar public key (G...) to preview the dashboard:');
@@ -672,6 +675,7 @@ async function connectWallet(){
       document.getElementById('receiveAddr').textContent = manual;
       renderQr(manual);
       fetchBalance(manual);
+      fetchActivity(manual);
       toast('Preview mode: address entered manually — sending will still require Freighter to sign');
     }
   }
@@ -679,15 +683,19 @@ async function connectWallet(){
 let connectedPublicKey = null;
 
 // --- Policy creation -----------------------------------------------------
-// If a real contract_id + stellar-sdk invocation is wired in later, replace
-// simulateSeal() with an actual InvokeHostFunction call to add_session_key /
-// initialize on the deployed PolicyWallet contract.
+// Session keys are sealed with a REAL InvokeHostFunction call to
+// add_session_key on the deployed contract (needs a connected wallet to
+// sign). Daily-limit / multisig types stay UI-only here since they map to
+// `initialize`, which can only run once per contract — see README.
 let policyCounter = 0;
+const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
+
 function createPolicy(){
   const type = document.getElementById('ptype').value;
+  if (type === 'session'){ sealSessionKeyOnChain(); return; }
+
   const list = document.getElementById('policyList');
   if (list.querySelector('.empty-state')) list.innerHTML = '';
-
   let label, detail, data;
   const createdAt = new Date().toISOString();
   if (type === 'limit'){
@@ -695,21 +703,20 @@ function createPolicy(){
     label = 'Daily spending limit';
     detail = 'Ceiling <b>' + amt + ' XLM</b> per rolling 24h window';
     data = { type: 'daily_spending_limit', daily_limit_xlm: amt, created_at: createdAt };
-  } else if (type === 'multisig'){
+  } else {
     const th = parseFloat(document.getElementById('msThreshold').value || '2');
     const owners = document.getElementById('msOwners').value.split(',').map(s=>s.trim()).filter(Boolean);
     label = 'Multisig threshold';
     detail = 'Requires <b>' + th + '</b> combined signer weight';
     data = { type: 'multisig_threshold', required_weight: th, owners, created_at: createdAt };
-  } else {
-    const budget = parseFloat(document.getElementById('sessBudget').value || '50');
-    const ttlHours = parseFloat(document.getElementById('sessTtl').value || '24');
-    const expiresAt = Date.now() + ttlHours * 3600 * 1000;
-    label = 'Session key';
-    detail = 'Budget <b>' + budget + ' XLM</b>, expires in <b>' + ttlHours + 'h</b>';
-    data = { type: 'session_key', budget_xlm: budget, ttl_hours: ttlHours, created_at: createdAt, expires_at: new Date(expiresAt).toISOString() };
   }
+  addPolicyCard(label, detail, data, '');
+  toast('Policy created in UI — this type maps to initialize(), which can only run once on a live contract. See README.');
+}
 
+function addPolicyCard(label, detail, data, extraHtml){
+  const list = document.getElementById('policyList');
+  if (list.querySelector('.empty-state')) list.innerHTML = '';
   const id = 'policy-' + (++policyCounter);
   const card = document.createElement('div');
   card.className = 'policy-card';
@@ -718,7 +725,7 @@ function createPolicy(){
     <div style="flex:1;">
       <div class="ptype">${label}</div>
       <div class="pdetail">${detail}</div>
-      ${type === 'session' ? '<div class="pdetail" style="color:var(--teal);margin-top:4px;" data-countdown="' + data.expires_at + '"></div>' : ''}
+      ${extraHtml || ''}
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="theme-toggle" style="width:auto;height:auto;padding:5px 11px;font-size:0.68rem;border-radius:6px;" onclick='exportPolicyJson(${JSON.stringify(JSON.stringify(data))})' title="Export as JSON">export</button>
@@ -729,7 +736,84 @@ function createPolicy(){
       </svg>
     </div>`;
   list.prepend(card);
-  toast('Policy created in UI — call add_session_key / initialize on-chain via CLI or SDK to make it binding');
+}
+
+async function sealSessionKeyOnChain(){
+  const resultEl = document.getElementById('policyOnchainResult');
+  resultEl.className = 'send-result show';
+  resultEl.textContent = 'Preparing on-chain call…';
+
+  const budget = parseFloat(document.getElementById('sessBudget').value || '50');
+  const ttlHours = parseFloat(document.getElementById('sessTtl').value || '24');
+
+  if (!connectedPublicKey){ resultEl.textContent = '⚠ Connect a wallet first — the contract needs a real signature to authorize this.'; return; }
+  if (typeof StellarSdk === 'undefined' || !window.freighterApi){ resultEl.textContent = '⚠ stellar-sdk / Freighter not loaded — refresh the page.'; return; }
+
+  try{
+    // Generate a fresh testnet keypair to act as the session signer.
+    // Its public key is what gets registered on-chain; its secret is shown
+    // once so you could use it to actually sign as this session later.
+    const sessionKeypair = StellarSdk.Keypair.random();
+
+    const rpcServer = new StellarSdk.rpc.Server(RPC_URL);
+    const contract = new StellarSdk.Contract(CONTRACT_ID);
+    const sourceAccount = await rpcServer.getAccount(connectedPublicKey);
+
+    const ownerVal = new StellarSdk.Address(connectedPublicKey).toScVal();
+    const sessionPkVal = StellarSdk.xdr.ScVal.scvBytes(sessionKeypair.rawPublicKey());
+    const ttlVal = StellarSdk.nativeToScVal(Math.round(ttlHours * 3600), { type: 'u64' });
+    const budgetVal = StellarSdk.nativeToScVal(BigInt(Math.round(budget * 1e7)), { type: 'i128' });
+
+    let tx = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: '1000000',
+      networkPassphrase: TESTNET_PASSPHRASE
+    })
+      .addOperation(contract.call('add_session_key', ownerVal, sessionPkVal, ttlVal, budgetVal))
+      .setTimeout(60)
+      .build();
+
+    resultEl.textContent = 'Simulating on testnet RPC…';
+    tx = await rpcServer.prepareTransaction(tx);
+
+    resultEl.textContent = 'Waiting for Freighter signature…';
+    const signResult = await window.freighterApi.signTransaction(tx.toXDR(), {
+      networkPassphrase: TESTNET_PASSPHRASE,
+      address: connectedPublicKey
+    });
+    if (signResult.error) throw new Error(signResult.error.message || 'signing failed');
+    const signedTx = StellarSdk.TransactionBuilder.fromXDR(signResult.signedTxXdr, TESTNET_PASSPHRASE);
+
+    resultEl.textContent = 'Submitting to testnet…';
+    const sendResult = await rpcServer.sendTransaction(signedTx);
+    if (sendResult.status === 'ERROR') throw new Error('Submission rejected by RPC');
+
+    resultEl.textContent = 'Waiting for confirmation…';
+    let final = await rpcServer.getTransaction(sendResult.hash);
+    let attempts = 0;
+    while (final.status === 'NOT_FOUND' && attempts < 15){
+      await new Promise(r => setTimeout(r, 1500));
+      final = await rpcServer.getTransaction(sendResult.hash);
+      attempts++;
+    }
+    if (final.status !== 'SUCCESS') throw new Error('Transaction ' + final.status + ' — check the hash on Stellar Expert for details');
+
+    resultEl.innerHTML = '✓ Session key sealed on-chain. <a href="https://stellar.expert/explorer/testnet/tx/' + sendResult.hash + '" target="_blank" rel="noopener">View on Stellar Expert →</a>';
+    toast('add_session_key confirmed on testnet');
+
+    const expiresAt = Date.now() + ttlHours * 3600 * 1000;
+    const data = {
+      type: 'session_key', budget_xlm: budget, ttl_hours: ttlHours,
+      created_at: new Date().toISOString(), expires_at: new Date(expiresAt).toISOString(),
+      session_public_key: sessionKeypair.publicKey(),
+      session_secret_key: sessionKeypair.secret(),
+      tx_hash: sendResult.hash
+    };
+    const extraHtml = '<div class="pdetail" style="color:var(--teal);margin-top:4px;" data-countdown="' + data.expires_at + '"></div>' +
+      '<div class="code-note" style="margin-top:8px;font-size:0.7rem;">session secret (testnet demo — copy if you want to sign with it): ' + sessionKeypair.secret() + '</div>';
+    addPolicyCard('Session key', 'Budget <b>' + budget + ' XLM</b>, expires in <b>' + ttlHours + 'h</b> · <span style="color:var(--teal);">on-chain ✓</span>', data, extraHtml);
+  }catch(err){
+    resultEl.textContent = '⚠ Failed: ' + (err.message || err);
+  }
 }
 
 function exportPolicyJson(jsonStr){
@@ -990,12 +1074,25 @@ async function fetchBalance(address){
 }
 
 // --- Activity feed -----------------------------------------------------
-const ACTIVITY_ACCOUNT = "GA6HHBRA73MMJ2M3RHFKGQKJVZSCWV52VL25G2CBNAVSJKDVORQNP6RH"; // contract owner
-async function fetchActivity(){
+const ACTIVITY_ACCOUNT = "GA6HHBRA73MMJ2M3RHFKGQKJVZSCWV52VL25G2CBNAVSJKDVORQNP6RH"; // contract owner (default, before wallet connects)
+async function fetchActivity(account){
+  const target = account || connectedPublicKey || ACTIVITY_ACCOUNT;
+  const isOwnWallet = !!connectedPublicKey && target === connectedPublicKey;
+
+  const titleEl = document.getElementById('activityTitle');
+  const descEl = document.getElementById('activityDesc');
+  if (isOwnWallet){
+    titleEl.innerHTML = 'Recent activity <span style="font-family:var(--mono);font-size:0.68rem;color:var(--teal);font-weight:400;">· your wallet</span>';
+    descEl.textContent = 'Your real transactions on Stellar testnet, pulled live from Horizon.';
+  } else {
+    titleEl.innerHTML = 'Recent activity <span style="font-family:var(--mono);font-size:0.68rem;color:var(--text-dim);font-weight:400;">· contract owner</span>';
+    descEl.textContent = 'Real transactions from the contract owner account, pulled from Horizon testnet — deploys, policy updates, and payments, in the order they landed on-chain. Connect a wallet to switch this to your own activity.';
+  }
+
   const list = document.getElementById('activityList');
   list.innerHTML = '<div class="skeleton-line" style="width:100%;"></div><div class="skeleton-line" style="width:90%;"></div>';
   try{
-    const res = await fetch('https://horizon-testnet.stellar.org/accounts/' + ACTIVITY_ACCOUNT + '/operations?order=desc&limit=6');
+    const res = await fetch('https://horizon-testnet.stellar.org/accounts/' + target + '/operations?order=desc&limit=6');
     const data = await res.json();
     const ops = data._embedded?.records || [];
     if (!ops.length){ list.innerHTML = '<div class="empty-state">No activity found</div>'; return; }

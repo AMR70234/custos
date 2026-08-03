@@ -78,6 +78,23 @@ before you rely on it.
   against the live daily limit, and explains which `Error` variant would
   fire. This runs client-side rather than as a signed transaction, so it's
   labeled as a rules check, not an on-chain call.
+- **Session keys are sealed on-chain, for real**: choosing "Session key"
+  and hitting "Seal policy" now builds a genuine `InvokeHostFunction` call
+  to `add_session_key` on the deployed contract, has Freighter sign it,
+  submits it via Soroban RPC, and waits for confirmation. A fresh testnet
+  keypair is generated client-side to act as the session signer; its
+  secret is shown once so you could actually sign with it. Daily-limit and
+  multisig policy types stay UI-only in this demo, since they map to
+  `initialize`, which the contract only allows to run once — see
+  "Ideas to extend" below for what a real update path would need.
+  **Known limitation, disclosed here on purpose:** `add_session_key`'s
+  `owner: Address` parameter is only checked via `owner.require_auth()` —
+  it proves *someone* signed as that address, but the contract doesn't
+  cross-check that address against the `OWNERS` list from `initialize`.
+  In practice this means any connected wallet can seal a session key for
+  itself right now, not just the registered owner. That's a real gap in
+  `lib.rs`, not a UI limitation — worth fixing before this goes anywhere
+  near mainnet.
 - **Send / Receive (testnet)**: Receive shows your connected address for
   copying. Send builds a real classic Stellar `Payment` operation, has
   Freighter sign it, and submits it to testnet Horizon — a genuine
@@ -93,9 +110,10 @@ before you rely on it.
   fetched from Horizon testnet.
 - **QR code**: the Receive tab renders a scannable QR of your address
   (via the `qrcodejs` library), generated client-side.
-- **Recent activity feed**: real operations for the contract owner
-  account, pulled from Horizon (`GET /accounts/{id}/operations`) — deploys,
-  `initialize` calls, and payments, each linking to Stellar Expert.
+- **Recent activity feed**: shows the contract owner account's real
+  Horizon operations before a wallet connects (proof the contract is live
+  even to a visitor who hasn't connected anything); once a wallet connects,
+  it switches to that wallet's own transaction history instead.
 - **Light/dark theme toggle** and mobile-responsive layout tweaks (nav
   collapses on small screens, stat grids stack to one column, etc).
 - **Comparison table** on the landing page contrasting a regular Stellar
@@ -114,3 +132,6 @@ before you rely on it.
 - Add a policy **revocation** function + UI button (needs a new contract
   function + redeploy).
 - Emit contract events on policy changes and show them as an activity feed.
+- **Fix `add_session_key`'s owner check** — validate that the `owner`
+  parameter is actually a member of the `OWNERS` list before trusting its
+  `require_auth()`, instead of accepting any address that signs for itself.
